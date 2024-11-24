@@ -1,46 +1,83 @@
+import re
 from bs4 import BeautifulSoup
 from datetime import datetime, timezone
 
 from utils.log_utils import log_screen
 
-def extract_media_urls(tweet_div):
+"""
+    It can happen that it includes twitter URL
+"""
+def get_tweet_url(text):
+    if text:
+        twitter_regex = re.compile(r'(https://(twitter\.com|x\.com)|)(/\w+/status/\d+)')
+        match = twitter_regex.search(text)
+        if match:
+            return match.group(0)
+    return None
+
+"""
+    Some tweet view have incomplete ugly URLs, remove them just in case
+"""
+def filter_incomplete_url(text):
+    if text:
+        regex = r'\s*(?:x\.com|twitter\.com)/[^\s]+[\u2026]\s*'
+        text = re.sub(regex, '', text)
+    return text
+
+"""
+    Content in tweets should not have twitter urls at all
+"""
+def filter_tweet_url(text):
+    if text:
+        regex = r'\s*(https://(twitter\.com|x\.com)|)(/\w+/status/\d+)\s*'
+        text = re.sub(regex, '', text)
+    return text
+
+def extract_media_urls(tweet_div = None):
     media_urls = {'photos': [], 'videos': [], 'gif': []}
     
-    photos_div = tweet_div.find_all('div', {'data-testid': 'tweetPhoto'})
-    for photo_div in photos_div:
-        try:
-            img_tag = photo_div.find('img')
-            # Ignore video thumbnails :)
-            if img_tag and 'src' in img_tag.attrs:
-                if 'video_thumb' not in img_tag['src']:
-                    media_urls['photos'].append({'src':img_tag['src'], 'alt':img_tag['alt']})
-                else:
-                    media_urls['gif'].append({'src':img_tag['src'], 'alt':img_tag['alt']})
+    if tweet_div:
+        photos_div = tweet_div.find_all('div', {'data-testid': 'tweetPhoto'})
+        for photo_div in photos_div:
+            try:
+                img_tag = photo_div.find('img')
+                # Ignore video thumbnails :)
+                if img_tag and 'src' in img_tag.attrs:
+                    if 'video_thumb' not in img_tag['src']:
+                        media_urls['photos'].append({'src':img_tag['src'], 'alt':img_tag['alt']})
+                    else:
+                        media_urls['gif'].append({'src':img_tag['src'], 'alt':img_tag['alt']})
 
-            videos = photo_div.find_all('div', {'data-testid': 'videoComponent'})
-            for video in videos: 
-                try: 
-                    video_tag = video.find('video')
-                    # Ignore video thumbnails :)
-                    if video_tag:
-                        if 'poster' in video_tag.attrs: # and 'ext_tw_video_thumb' not in video_tag['src']:
-                            media_urls['videos'].append({'src': video_tag['poster'], 'alt':video_tag['alt'] if 'alt' in video_tag else "Video"})
-                        
-                        source_tag = video_tag.find('source')
-                        if source_tag and 'src' in source_tag.attrs: # and 'ext_tw_video_thumb' not in video_tag['src']:    
-                            media_urls['videos'].append({'src':source_tag['src'], 'alt':source_tag['alt'] if 'alt' in source_tag else "Video"})
-                except Exception as e:
-                    log_screen(f"Error al extraer la URL del video for {video_tag}: Exception: {e}", level="ERROR")
-        except Exception as e:
-            log_screen(f"Error al extraer la URL de la foto for {img_tag}: Exception: {e}", level="ERROR")
-    
+                videos = photo_div.find_all('div', {'data-testid': 'videoComponent'})
+                for video in videos: 
+                    try: 
+                        video_tag = video.find('video')
+                        # Ignore video thumbnails :)
+                        if video_tag:
+                            if 'poster' in video_tag.attrs: # and 'ext_tw_video_thumb' not in video_tag['src']:
+                                media_urls['videos'].append({'src': video_tag['poster'], 'alt':video_tag['alt'] if 'alt' in video_tag else "Video"})
+                            
+                            source_tag = video_tag.find('source')
+                            if source_tag and 'src' in source_tag.attrs: # and 'ext_tw_video_thumb' not in video_tag['src']:    
+                                media_urls['videos'].append({'src':source_tag['src'], 'alt':source_tag['alt'] if 'alt' in source_tag else "Video"})
+                    except Exception as e:
+                        log_screen(f"Error al extraer la URL del video for {video_tag}: Exception: {e}", level="ERROR")
+            except Exception as e:
+                log_screen(f"Error al extraer la URL de la foto for {img_tag}: Exception: {e}", level="ERROR")
+        
     return media_urls
 
 def extract_content(content_div):
     if not content_div:
         content="No content available" 
     else:
-        content = ''.join([str(element['alt']) if element.name == 'img' else element.get_text() for element in content_div.children])
+        content = ''.join([
+            str(element['alt']) if element.name == 'img' else  # Imag, usually emojy takes alt
+            element.get('href', '') if element.name == 'a' else  # a could imply having a link in there (cite tweet maybe)
+            element.get_text()
+            for element in content_div.children
+        ])
+
     return content
 
 def get_tweet_data(tweet_div):
@@ -62,7 +99,7 @@ def get_tweet_data(tweet_div):
                 user_handle_div = user_div.find('div', {'class': 'css-146c3p1 r-dnmrzs r-1udh08x r-3s2u2q r-bcqeeo r-1ttztb7 r-qvutc0 r-37j5jr r-a023e6 r-rjixqe r-16dba41 r-18u37iz r-1wvb978'})
                 user_handle = user_handle_div.find('span', {'class': 'css-1jxf684 r-bcqeeo r-1ttztb7 r-qvutc0 r-poiln3'}).get_text()
             user_name = extract_content(user_div.find('div', {'class': 'css-146c3p1 r-bcqeeo r-1ttztb7 r-qvutc0 r-37j5jr r-a023e6 r-rjixqe r-b88u0q r-1awozwy r-6koalj r-1udh08x r-3s2u2q'}))
-        
+            
         # Main tweet have different metadata tag ?¿
         metadata_div = tweet_div.find('div', {'class': 'css-175oi2r r-1wbh5a2 r-1a11zyx'})
         if not metadata_div:
@@ -81,10 +118,28 @@ def get_tweet_data(tweet_div):
         cited_tweet = None
         if cited_div:
             # print(f"\n\n--------cited_div--------\n{tweet_div}\n--------fin cited_div--------\n")
-            cited_tweet = get_tweet_data(cited_div)            
-        
+            cited_tweet = get_tweet_data(cited_div)
+
+        # If tweet was deleted or account blocked it just displays URL...
+        cited_url = get_tweet_url(content)
+        if cited_url:
+            log_screen(f"Detected cite from missing tweet from {cited_url}", level="WARNING")
+            cited_tweet = {
+                'user_handle': f"/{cited_url.split('/')[-3]}",
+                'user_name': cited_url.split('/')[-3],
+                'date': None,
+                'lang': None,
+                'content': f"[!] Tweet removed or account blocked/removed: {cited_url}",
+                'media': extract_media_urls(),
+                'cited_tweet': None,
+                'href': cited_url
+            }
+
+        # Remove tweet urls from content as it should have none
+        content = filter_tweet_url(content)
+        content = filter_incomplete_url(content)
         tweet_info = {
-            'user_handle': user_handle,
+            'user_handle': user_handle.replace("@","/") if user_handle else None,
             'user_name': user_name,
             'date': date,
             'lang': lang,
@@ -107,7 +162,7 @@ def get_tweet_data(tweet_div):
 
 # Función para generar un ID único 
 def generate_unique_id(tweet): 
-    return f"{tweet['user_handle']}_{tweet['date']}"
+    return f"{tweet['user_handle']}_{tweet['date']}".replace("/","")
 
 
 """

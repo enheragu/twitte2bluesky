@@ -125,11 +125,15 @@ def retrieve_cited_threads(driver, tweets_info, processed_tweets=None,
                                                         output_path=output_path, html_output_path=html_output_path,
                                                         tweet_author_handle=tweet_author_handle)
             cited_data = extend_unique(cited_data,cited_tweet_thread)
-
+            
     return cited_data
 
 
 def tweetScrapping(args):
+
+    setLogDefaults()
+
+
     user, password, tweet_url, use_selenium, output_path = args.username, args.password, args.link, args.use_selenium, args.output
     tweet_author_handle = args.author
     
@@ -151,7 +155,7 @@ def tweetScrapping(args):
     print(f"\t· Use Selenium: {args.use_selenium}")
 
                     
-    if not os.path.exists(yaml_output_path):
+    if True or not os.path.exists(yaml_output_path):
         parent_html_path = os.path.join(html_output_path,'parent_html.html')
         if not use_selenium:
             driver = False
@@ -173,8 +177,11 @@ def tweetScrapping(args):
                                              output_path=output_path, html_output_path=html_output_path,
                                              tweet_author_handle=tweet_author_handle)
 
+        # Filter tweets in main list from other authors
+        filtered_tweets = [tweet for tweet in tweets_info if tweet_author_handle in tweet['id']]
+
         with open(yaml_output_path, "w+") as yaml_file:
-            yaml.dump(tweets_info, yaml_file, default_flow_style=False)
+            yaml.dump(filtered_tweets, yaml_file, default_flow_style=False)
 
         if use_selenium:
             driver.quit()

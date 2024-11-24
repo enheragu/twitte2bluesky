@@ -36,7 +36,7 @@ LOG_LEVEL = {
             }
 
 
-def setLogDefaults(topic, log_level, logging_path):
+def setLogDefaults(topic = None, log_level = "INFO", logging_path = "/tmp/twitter2bluesky"):
     global DEFAULT_TOPIC, DEFAULT_LOG_LEVEL
 
     DEFAULT_TOPIC = topic
@@ -70,7 +70,7 @@ def loggingShutdown():
 
     TBD: Check that logging level provided is in line with the expected.
 """
-def log_screen(msg, level = "INFO", notify = False, text_format=bcolors.ENDC):
+def log_screen(msg, level = "INFO", notify = False, text_format=""):
     global DEFAULT_TOPIC
     global DEFAULT_LOG_LEVEL
 
