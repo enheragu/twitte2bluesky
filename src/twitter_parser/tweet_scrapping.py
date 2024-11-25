@@ -1,6 +1,7 @@
 import re
 from bs4 import BeautifulSoup
 from datetime import datetime, timezone
+from bs4 import FeatureNotFound
 
 from utils.log_utils import log_screen
 
@@ -34,7 +35,7 @@ def filter_tweet_url(text):
     return text
 
 def extract_media_urls(tweet_div = None):
-    media_urls = {'photos': [], 'videos': [], 'gif': []}
+    media_urls = {'photos': [], 'videos': []} #, 'gif': []} # Videos are finally handled as videos 
     
     if tweet_div:
         photos_div = tweet_div.find_all('div', {'data-testid': 'tweetPhoto'})
@@ -46,7 +47,7 @@ def extract_media_urls(tweet_div = None):
                     if 'video_thumb' not in img_tag['src']:
                         media_urls['photos'].append({'src':img_tag['src'], 'alt':img_tag['alt']})
                     else:
-                        media_urls['gif'].append({'src':img_tag['src'], 'alt':img_tag['alt']})
+                        media_urls['videos'].append({'src':img_tag['src'], 'alt':img_tag['alt']})
 
                 videos = photo_div.find_all('div', {'data-testid': 'videoComponent'})
                 for video in videos: 
@@ -54,16 +55,16 @@ def extract_media_urls(tweet_div = None):
                         video_tag = video.find('video')
                         # Ignore video thumbnails :)
                         if video_tag:
-                            if 'poster' in video_tag.attrs: # and 'ext_tw_video_thumb' not in video_tag['src']:
-                                media_urls['videos'].append({'src': video_tag['poster'], 'alt':video_tag['alt'] if 'alt' in video_tag else "Video"})
-                            
-                            source_tag = video_tag.find('source')
-                            if source_tag and 'src' in source_tag.attrs: # and 'ext_tw_video_thumb' not in video_tag['src']:    
-                                media_urls['videos'].append({'src':source_tag['src'], 'alt':source_tag['alt'] if 'alt' in source_tag else "Video"})
-                    except Exception as e:
-                        log_screen(f"Error al extraer la URL del video for {video_tag}: Exception: {e}", level="ERROR")
-            except Exception as e:
-                log_screen(f"Error al extraer la URL de la foto for {img_tag}: Exception: {e}", level="ERROR")
+                            if 'src' in video_tag.attrs: # and 'ext_tw_video_thumb' not in video_tag['src']:
+                                media_urls['videos'].append({'src': video_tag['src'], 'alt':video_tag['aria-label'] if 'aria-label' in video_tag.attrs else "Video"})
+                                log_screen(f"Found video :) -> {media_urls['videos'][-1]}")
+                            # source_tag = video_tag.find('source')
+                            # if source_tag and 'src' in source_tag.attrs: # and 'ext_tw_video_thumb' not in video_tag['src']:    
+                            #     media_urls['videos'].append({'src':source_tag['src'], 'alt':source_tag['alt'] if 'alt' in source_tag.attrs     else "Video"})
+                    except FeatureNotFound as e:
+                        log_screen(f"[Bs4::FeatureNotFound] Error extracitg video URL from {video_tag}: Exception: {e}", level="ERROR")
+            except FeatureNotFound as e:
+                log_screen(f"[Bs4::FeatureNotFound] Error extracitg image URL from {img_tag}: Exception: {e}", level="ERROR")
         
     return media_urls
 
@@ -111,8 +112,11 @@ def get_tweet_data(tweet_div):
                 href = data_a['href'] if 'href' in data_a.attrs else "No href data available"
             date_time = metadata_div.find('time')
             date = date_time['datetime'] if date_time else "No datetime data available"
-            
-        media_list = extract_media_urls(tweet_div)
+        
+        media_div = tweet_div.find('div', {'class': 'css-175oi2r r-1kqtdi0 r-1phboty r-rs99b7 r-1867qdf r-1udh08x r-o7ynqc r-6416eg r-1ny4l3l'})
+        if not media_div: # Cited tweets have media in another place :)
+            media_div = tweet_div.find('div', {'data-testid': 'testCondensedMedia'})
+        media_list = extract_media_urls(media_div)
 
         cited_div = tweet_div.find('div', {'role': 'link', 'class': 'css-175oi2r r-adacv r-1udh08x r-1kqtdi0 r-1867qdf r-rs99b7 r-o7ynqc r-6416eg r-1ny4l3l r-1loqt21'}) 
         cited_tweet = None
@@ -151,9 +155,10 @@ def get_tweet_data(tweet_div):
         if all(valor is None for valor in tweet_info.values()):
             log_screen(f"All data is None in dict...", level="ERROR")
             tweet_info = {}
-
+    except FeatureNotFound as e:
+        log_screen(f"[Bs4::FeatureNotFound] Error extracting tweet information {e}", level="ERROR")
     except Exception as e:
-        log_screen(f"Error al extraer información del tweet: {e}", level="ERROR")
+        log_screen(f"Error extracting tweet information: {e}", level="ERROR")
         raise e
 
     return tweet_info

@@ -4,4 +4,4 @@ beautifulsoup4
 tabulate
 pyyaml
 argparse
-networkx
+tqdm

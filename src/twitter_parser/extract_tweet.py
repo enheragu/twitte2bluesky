@@ -10,6 +10,7 @@ from utils.log_utils import log_screen, loggingShutdown, setLogDefaults, bcolors
 from utils.format_utils import replace_emojis, format_date, truncate_string, strListRecursive, strDictRecursive
 from twitter_parser.twitter_selenium import twitter_logging, setup_driver ,get_tweet_html, get_cited_tweet_url, get_tweet_screenshot
 from twitter_parser.tweet_scrapping import extract_thread_from_html
+from twitter_parser.media_handler import download_tweet_files
 
 BASE_URL = 'https://x.com'
 
@@ -133,15 +134,18 @@ def tweetScrapping(args):
 
     setLogDefaults()
 
-
     user, password, tweet_url, use_selenium, output_path = args.username, args.password, args.link, args.use_selenium, args.output
     tweet_author_handle = args.author
     
     html_output_path = os.path.join(output_path,"html_data/")
+    media_output_path = os.path.join(output_path,"media/")
     yaml_output_path = os.path.join(output_path,"tweet_data.yaml")
     
     if not os.path.exists(html_output_path):
         os.makedirs(html_output_path, exist_ok=True)
+
+    if not os.path.exists(media_output_path):
+        os.makedirs(media_output_path, exist_ok=True)
     
     if not is_valid_twitter_url(args.link):
         log_screen("Error: The provided link is not a valid Twitter URL.", level="ERROR")
@@ -186,10 +190,11 @@ def tweetScrapping(args):
         if use_selenium:
             driver.quit()
 
-
     with open(yaml_output_path, 'r+') as yaml_file:
         tweets_info = yaml.safe_load(yaml_file)
-                
+
+    download_tweet_files(tweets_info=tweets_info, output_path=media_output_path)
+
     printSummaryTable(tweets_info)    
 
     loggingShutdown()
