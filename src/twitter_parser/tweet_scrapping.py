@@ -34,6 +34,24 @@ def filter_tweet_url(text):
         text = re.sub(regex, '', text)
     return text
 
+"""
+    There are two URL formats:
+    · https://video.twimg.com/tweet_video/FkU_T4FWQAUMRTy.mp4 → Downloaded as FkU_T4FWQAUMRTy.mp4.
+    · https://pbs.twimg.com/media/FkW33SaXEBgIoWR?format=jpg&name=240x240 → Downloaded as FkW33SaXEBgIoWR.jpg.
+    This function makes use of regex to extract the name and format from a given URL
+"""
+def get_file_name(url):
+    base_name = url.split("/")[-1].split("?")[0].split(".")[0]
+    match = re.search(r'\.(\w+)(\?|$)', url)
+    if match:
+        return base_name + "." + str(match.group(1))
+
+    match = re.search(r'format=(\w+)&', url)
+    if match:
+        return base_name + "." + str(match.group(1))
+
+    return base_name + ".unknown"
+
 def extract_media_urls(tweet_div = None):
     media_urls = {'photos': [], 'videos': []} #, 'gif': []} # Videos are finally handled as videos 
     
@@ -45,9 +63,9 @@ def extract_media_urls(tweet_div = None):
                 # Ignore video thumbnails :)
                 if img_tag and 'src' in img_tag.attrs:
                     if 'video_thumb' not in img_tag['src']:
-                        media_urls['photos'].append({'src':img_tag['src'], 'alt':img_tag['alt']})
-                    else:
-                        media_urls['videos'].append({'src':img_tag['src'], 'alt':img_tag['alt']})
+                        media_urls['photos'].append({'src':img_tag['src'], 'filename': get_file_name(img_tag['src']), 'alt':img_tag['alt']})
+                    # else:
+                    #     media_urls['videos'].append({'src':img_tag['src'], 'filename': get_file_name(img_tag['src']), 'alt':img_tag['alt']})
 
                 videos = photo_div.find_all('div', {'data-testid': 'videoComponent'})
                 for video in videos: 
@@ -56,7 +74,7 @@ def extract_media_urls(tweet_div = None):
                         # Ignore video thumbnails :)
                         if video_tag:
                             if 'src' in video_tag.attrs: # and 'ext_tw_video_thumb' not in video_tag['src']:
-                                media_urls['videos'].append({'src': video_tag['src'], 'alt':video_tag['aria-label'] if 'aria-label' in video_tag.attrs else "Video"})
+                                media_urls['videos'].append({'src': video_tag['src'], 'filename': get_file_name(video_tag['src']), 'alt':video_tag['aria-label'] if 'aria-label' in video_tag.attrs else "Video"})
                                 log_screen(f"Found video :) -> {media_urls['videos'][-1]}")
                             # source_tag = video_tag.find('source')
                             # if source_tag and 'src' in source_tag.attrs: # and 'ext_tw_video_thumb' not in video_tag['src']:    

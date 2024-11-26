@@ -11,9 +11,15 @@ from utils.format_utils import replace_emojis, format_date, truncate_string, str
 from twitter_parser.twitter_selenium import twitter_logging, setup_driver ,get_tweet_html, get_cited_tweet_url, get_tweet_screenshot
 from twitter_parser.tweet_scrapping import extract_thread_from_html
 from twitter_parser.media_handler import download_tweet_files
+from twitter_parser.weave_plotting import mermaidPlotTweetStructure
 
 BASE_URL = 'https://x.com'
 
+## Base paths. All are completed with input output_path
+html_subpath = "html_data"
+media_subpath = "media"
+cited_screenshot_subpath = "cited_img"
+yaml_subpath = "tweet_data.yaml"
 
 def printSummaryTable(tweets_info):
     table_data = copy.deepcopy(tweets_info)
@@ -80,7 +86,7 @@ def extend_unique(cited_data, cited_tweet_thread):
     return cited_data
     
 def retrieve_cited_threads(driver, tweets_info, processed_tweets=None, 
-                           use_selenium = False, output_path = "./", html_output_path = "./",
+                           use_selenium = False, cited_screenshot_output_path = "./", html_output_path = "./",
                            tweet_author_handle = None):
     # Keep track of processed to avoid repetitions
     if processed_tweets is None:
@@ -88,7 +94,7 @@ def retrieve_cited_threads(driver, tweets_info, processed_tweets=None,
 
     cited_data = tweets_info
     for tweet in tweets_info:
-        if tweet['cited_tweet'] and tweet['href']:
+        if tweet['cited_tweet'] and tweet['href'] and tweet['date']:
             tweet_id = tweet['cited_tweet']['id']
             
             if tweet_id in processed_tweets:
@@ -101,7 +107,7 @@ def retrieve_cited_threads(driver, tweets_info, processed_tweets=None,
                 cited_url = get_cited_tweet_url(driver, f"{BASE_URL}{tweet['href']}")
 
                 if tweet_author_handle and tweet_author_handle not in tweet_id:
-                    get_tweet_screenshot(driver, cited_url, os.path.join(output_path, f"{tweet_id}.png"))
+                    get_tweet_screenshot(driver, cited_url, os.path.join(cited_screenshot_output_path, f"{tweet_id}.png"))
                     log_screen(f"Snapshot taken from cited tweet with id: {tweet_id}; {cited_url}.")
                     continue
 
@@ -123,7 +129,7 @@ def retrieve_cited_threads(driver, tweets_info, processed_tweets=None,
             cited_tweet_thread = extract_thread_from_html(cited_html_data)
             cited_tweet_thread = retrieve_cited_threads(driver=driver, tweets_info=cited_tweet_thread,
                                                         processed_tweets=processed_tweets, use_selenium=use_selenium,
-                                                        output_path=output_path, html_output_path=html_output_path,
+                                                        cited_screenshot_output_path=cited_screenshot_output_path, html_output_path=html_output_path,
                                                         tweet_author_handle=tweet_author_handle)
             cited_data = extend_unique(cited_data,cited_tweet_thread)
             
@@ -134,26 +140,30 @@ def tweetScrapping(args):
 
     setLogDefaults()
 
-    user, password, tweet_url, use_selenium, output_path = args.username, args.password, args.link, args.use_selenium, args.output
-    tweet_author_handle = args.author
-    
-    html_output_path = os.path.join(output_path,"html_data/")
-    media_output_path = os.path.join(output_path,"media/")
-    yaml_output_path = os.path.join(output_path,"tweet_data.yaml")
-    
-    if not os.path.exists(html_output_path):
-        os.makedirs(html_output_path, exist_ok=True)
+    if not args.author:
+        args.author = args.tw_username
 
-    if not os.path.exists(media_output_path):
-        os.makedirs(media_output_path, exist_ok=True)
+    user, password, tweet_url, use_selenium, output_path = args.tw_username, args.tw_password, args.tw_link, args.use_selenium, args.output
+    tweet_author_handle = args.author
+
+    output_path = os.path.abspath(output_path)
     
-    if not is_valid_twitter_url(args.link):
-        log_screen("Error: The provided link is not a valid Twitter URL.", level="ERROR")
+    html_output_path = os.path.join(output_path, html_subpath)
+    media_output_path = os.path.join(output_path, media_subpath)
+    cited_screenshot_output_path = os.path.join(output_path, cited_screenshot_subpath)
+    yaml_output_path = os.path.join(output_path, yaml_subpath)
+    
+    for path in [html_output_path, media_output_path, cited_screenshot_output_path]:
+        if not os.path.exists(path):
+            os.makedirs(path, exist_ok=True)
+    
+    if not is_valid_twitter_url(args.tw_link):
+        log_screen(f"Error: The provided link ({args.tw_link}) is not a valid Twitter URL.", level="ERROR")
         exit(1)
 
     print("Starting scraping...")
-    print(f"\t· Username: {args.username}")
-    print(f"\t· Tweet URL: {args.link}")
+    print(f"\t· Username: {args.tw_username}")
+    print(f"\t· Tweet URL: {args.tw_link}")
     print(f"\t· Scrapping from: {args.author}")
     print(f"\t· Data will be saved to: {output_path}")
     print(f"\t· Use Selenium: {args.use_selenium}")
@@ -178,7 +188,7 @@ def tweetScrapping(args):
 
         tweets_info = extract_thread_from_html(html_data)
         tweets_info = retrieve_cited_threads(driver=driver,tweets_info=tweets_info,use_selenium=use_selenium,
-                                             output_path=output_path, html_output_path=html_output_path,
+                                             cited_screenshot_output_path=cited_screenshot_output_path, html_output_path=html_output_path,
                                              tweet_author_handle=tweet_author_handle)
 
         # Filter tweets in main list from other authors
@@ -195,7 +205,8 @@ def tweetScrapping(args):
 
     download_tweet_files(tweets_info=tweets_info, output_path=media_output_path)
 
-    printSummaryTable(tweets_info)    
+    printSummaryTable(tweets_info)   
+    mermaidPlotTweetStructure(media_path=media_output_path, cited_path=cited_screenshot_output_path, yaml_path=yaml_output_path) 
 
     loggingShutdown()
 
@@ -203,12 +214,12 @@ def is_valid_twitter_url(url):
     twitter_regex = re.compile(r'https://(twitter\.com|x\.com)/\w+/status/\d+')
     return twitter_regex.match(url) is not None
 
-def extractTweetArgparse():
-    parser = argparse.ArgumentParser(description="Scrape Twitter to extract a web of tweets and threads.")
+def extractTweetArgParser(add_help = True):
+    parser = argparse.ArgumentParser(add_help=add_help, description="Scrape Twitter to extract a web of tweets and threads.")
 
-    parser.add_argument('-u', '--username', type=str, required=True, help="Twitter username to log in.")
-    parser.add_argument('-p', '--password', type=str, required=True, help="Twitter password to log in.")
-    parser.add_argument('-l', '--link', type=str, required=True, help="URL of the last tweet in the thread to start scraping.")
+    parser.add_argument('-tu', '--tw-username', dest='tw_username', type=str, required=True, help="Twitter username to log in.")
+    parser.add_argument('-tp', '--tw-password', dest='tw_password', type=str, required=True, help="Twitter password to log in.")
+    parser.add_argument('-tl', '--tw-link', dest='tw_link', type=str, required=True, help="URL of the last tweet in the thread to start scraping.")
     parser.add_argument('-o', '--output', type=str, default="./output_data/", help="Path to save the generated results (default: ./output_data/).")
     parser.add_argument('--no_selenium', action='store_false', dest='use_selenium', 
                         help="Disable Selenium and scrape from local HTML files instead.")
@@ -217,15 +228,6 @@ def extractTweetArgparse():
             "Username of the tweet author whose tweets will be scraped. "
             "If not provided, it defaults to the username used for logging in."
         ))
-    args = parser.parse_args()
-    
-    if not args.author:
-        args.author = args.username
-    
-    return args
+    return parser
 
-if __name__ == "__main__":
-    
-    args = extractTweetArgparse()
-    tweetScrapping(args)
 

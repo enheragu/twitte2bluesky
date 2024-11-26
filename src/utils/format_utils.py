@@ -42,15 +42,17 @@ def strListRecursive(list_in, level=0, max_length=70, tab='  '):
         return list_in
     
     str_data = ""
-    for value in list_in:
+    for index, value in enumerate(list_in):
         if isinstance(value, dict):
-            str_data += strDictRecursive(value, level + 1, max_length)
+            str_value = strDictRecursive(value, level + 1, max_length)
+            str_data += f"{tab*level}- [{index}]:\n{str_value}" if str_value != "" else ""
         elif isinstance(value, list):
-            str_data += strListRecursive(value, level + 1, max_length)
+            str_value = strListRecursive(value, level + 1, max_length)
+            str_data += f"{tab*level}- [{index}]:\n{str_value}" if str_value != "" else ""
         elif value is None:
             continue
         else:
-            str_data += f"{tab*level}· {truncate_string(str(value),max_length)}\n"
+            str_data += f"{tab*level}- [{index}]:{truncate_string(str(value),max_length)}\n"
     return str_data
 
 """
