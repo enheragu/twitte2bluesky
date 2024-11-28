@@ -92,8 +92,10 @@ def scroll_to_top(driver, waitUntilLoaded):
 """
     Takes tweets from a given url, note that it provides repeated tweet tags
     due to scrolling and web reloading :(
+    scrolling: if true, scrolls through the page to get the whole thread.
+               if false just gets tweet in the link and whatever loads around.
 """
-def get_tweet_html(driver, tweet_url):
+def get_tweet_html(driver, tweet_url, scrolling = True):
     driver.get(tweet_url) 
 
     # Small function to reduce code later
@@ -110,7 +112,8 @@ def get_tweet_html(driver, tweet_url):
         DriverWaitUntil(EC.presence_of_element_located((By.CSS_SELECTOR, 'div[data-testid="primaryColumn"]')),
                         'Timed out waiting for primaryColumn to appear')
     ## Scroll to top :)
-    scroll_to_top(driver, waitUntilLoaded)
+    if scrolling:
+        scroll_to_top(driver, waitUntilLoaded)
 
     # Scroll down accumulating tweets :)
     combined_html = ""
@@ -124,7 +127,10 @@ def get_tweet_html(driver, tweet_url):
             for element in elements:
                 element_html = element.get_attribute('outerHTML')
                 combined_html += element_html
-                
+
+            if not scrolling:
+                break
+              
             driver.execute_script(f"window.scrollBy(0, {step_height});")
             waitUntilLoaded()
 

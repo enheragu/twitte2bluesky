@@ -41,6 +41,7 @@ def download_tweet_files(tweets_info, output_path = "./"):
         tweet_media = tweet['media']
         for media_type in ['photos', 'videos']:
             for item in tweet_media[media_type]:
-                files_data.append((item['src'], item['filename']))
+                if 'src' in item and 'filename' in item:
+                    files_data.append((item['src'], item['filename']))
 
     download_files_multiprocessing(files_data, output_path)

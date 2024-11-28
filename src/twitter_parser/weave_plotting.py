@@ -22,8 +22,9 @@ def mermaidPlotTweetStructure(media_path, cited_path, yaml_path):
             image_path = os.path.join(media_path, photo["filename"])
             media_content+=f"<img src='{image_path}'/>" #  width='10'
         for video in tweet['media']['videos']:
-            video_path = os.path.join(media_path, video["filename"])
-            media_content+= f"<span><a href='file://{video_path}'>[VIDEO]:{video['filename']}</a></span>" 
+            if 'filename' in video:
+                video_path = os.path.join(media_path, video["filename"])
+                media_content+= f"<span><a href='file://{video_path}'>[VIDEO]:{video['filename']}</a></span>" 
 
         if not tweet['user_handle']:
             tweet_content = "None"
