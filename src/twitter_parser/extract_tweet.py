@@ -6,6 +6,7 @@ import tabulate
 import yaml
 import argparse
 
+from utils.yaml_utils import updateYAML, getYAML
 from utils.log_utils import log_screen, loggingShutdown, setLogDefaults, bcolors
 from utils.format_utils import replace_emojis, format_date, truncate_string, strListRecursive, strDictRecursive
 from twitter_parser.twitter_selenium import twitter_logging, setup_driver ,get_tweet_html, get_cited_tweet_url, get_tweet_screenshot
@@ -176,7 +177,7 @@ def tweetScrapping(args):
         else:
             log_screen(f"[PROCESS TWEET] Handling tweet from: {tweet_url}", text_format=bcolors.OKCYAN)
             driver = setup_driver()
-            twitter_logging(driver, args.username, args.password)
+            twitter_logging(driver, args.tw_username, args.tw_password)
             html_data = get_tweet_html(driver, tweet_url)
 
             with open(parent_html_path, 'w+') as html_file:
@@ -193,15 +194,12 @@ def tweetScrapping(args):
 
         # Filter tweets in main list from other authors
         filtered_tweets = [tweet for tweet in tweets_info if tweet_author_handle in tweet['id']]
-
-        with open(yaml_output_path, "w+") as yaml_file:
-            yaml.dump(filtered_tweets, yaml_file, default_flow_style=False)
+        updateYAML(filtered_tweets, yaml_output_path)
 
         if use_selenium:
             driver.quit()
 
-    with open(yaml_output_path, 'r+') as yaml_file:
-        tweets_info = yaml.safe_load(yaml_file)
+    tweets_info = getYAML(yaml_output_path)
 
     download_tweet_files(tweets_info=tweets_info, output_path=media_output_path)
 

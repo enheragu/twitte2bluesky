@@ -21,7 +21,7 @@ def setup_driver():
     options.add_argument("--disable-extensions")
     options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox") # linux only
-    # options.add_argument("--headless") 
+    options.add_argument("--headless") 
     driver = webdriver.Chrome(service = service, options=options)
 
     return driver
